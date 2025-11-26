@@ -7,11 +7,15 @@ from discord.ext import commands
 from bot_logic import gen_pass
 import os
 import requests
-
+from model import get_class
+from collections import Counter
+from detect_objects import detect
+from transformers import pipeline
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 description = '''An example bot to showcase the discord.ext.commands extension
 module.
 
-There are a number of utility commands bei                 ng showcased here.'''
+There are a number of utility commands being showcased here.'''
 
 intents = discord.Intents.default()
 intents.members = True
@@ -112,11 +116,77 @@ async def baca(ctx):
         
 # spamming word
 @bot.command()
-async def repeat(ctx, times: int, content='repeating...'):
+async def repeat(ctx, times: int, *,content='repeating...'):
     """Repeats a message multiple times."""
     for i in range(times):
         await ctx.send(content)
-        
+        # sentiment dev.
+@bot.command() 
+async def sentiment(ctx, *, kalimat3: str):
+    # Initialize sentiment analysis pipeline with GPU support
+    analyzer = pipeline('sentiment-analysis', model='nlptown/bert-base-multilingual-uncased-sentiment',device=1, batch_size=8, truncation=True)
+    sentiment = analyzer(kalimat3)[0]
+    await ctx.send(f"Sentiment: {sentiment['label']}")
+    await ctx.send(f"Score: {sentiment['score']}")
+# # sentiment dev.
+@bot.command()
+async def sentiment_vander(ctx, *, kalimat4: str):
+    analyzer = SentimentIntensityAnalyzer()
+    scores = analyzer.polarity_scores(kalimat4)
+    # Format the output for better readability
+    formatted_scores = f"""
+    Negative: {scores['neg']:.3f}
+    Neutral: {scores['neu']:.3f}
+    Positive: {scores['pos']:.3f}
+    Compound: {scores['compound']:.3f}
+    """
+    await ctx.send(f"Score: {formatted_scores}")
+#Computer Vision 
+
+@bot.command()
+async def klasifikasi(ctx):
+    if ctx.message.attachments:
+        for attachment in ctx.message.attachments:
+            file_name = attachment.filename
+            #file_url = attachment.url IF URL
+            await attachment.save(f"./CV/{file_name}")
+            await ctx.send(get_class(model_path="keras_model.h5", labels_path="labels.txt", image_path=f"./CV/{file_name}"))
+    else:
+        await ctx.send("Anda lupa mengunggah gambar burung :(")
+
+@bot.command()
+async def klasifikasi_sampah(ctx):
+    if ctx.message.attachments:
+        for attachment in ctx.message.attachments:
+            file_name = attachment.filename
+            #file_url = attachment.url IF URL
+            await attachment.save(f"./CV/{file_name}")
+            await ctx.send(get_class(model_path="keras_model4.h5", labels_path="labels4.txt", image_path=f"./CV/{file_name}"))
+    else:
+        await ctx.send("Anda lupa mengunggah gambar sampah :(")
+
+@bot.command()
+async def deteksi(ctx):
+    if ctx.message.attachments:
+        for attachment in ctx.message.attachments:
+            file_name = attachment.filename
+            await attachment.save(f"./CV/{file_name}")
+            # call detect ONCE and reuse its result
+            results = detect(input_image=f"./CV/{file_name}", output_image=f"./CV/{file_name}", model_path="yolov3.pt")
+            # If detect returns a string (message/path), send it
+            if isinstance(results, str):
+                await ctx.send(results)
+            # If detect returns a list of detections, count them
+            if isinstance(results, list):
+                counts = Counter(d['name'] for d in results)
+                msg = '\n'.join(f"{k}: {v}" for k, v in counts.items())
+                with open(f'CV/{file_name}', 'rb') as f:
+                    picture = discord.File(f)
+                await ctx.send(file=picture)
+                await ctx.send(f"Object counts:\n{msg}")
+    else:
+        await ctx.send("Anda lupa mengunggah gambar :(")
+
 # password generator        
 @bot.command()
 async def pw(ctx):
@@ -213,5 +283,8 @@ async def tips(ctx):
 @bot.command()
 async def lama_penguraian(ctx):
     await ctx.send('Berikut adalah daftar lama penguraian sampah: https://dlh.lampungprov.go.id/detail-post/berapa-lama-sampah-terurai#:~:text=Ayo%20pelajari%20lebih%20jauh%20mengenai,waktu%206%20Bulan%20untuk%20terurai.')
-
+@bot.command()
+async def web(ctx):
+    await ctx.send('Berikut adalah website databse: https://deaf661.pythonanywhere.com/')
 bot.run(token=)
+
